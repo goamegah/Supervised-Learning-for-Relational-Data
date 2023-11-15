@@ -1,0 +1,1308 @@
+---
+title: "Credit_Bank"
+output:
+  word_document: default
+  pdf_document: default
+date: '2023-03-05'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Importation des données et un premier overview
+
+```{r cars}
+library(tidymodels)
+library(themis)
+library(skimr)
+library(readr)
+
+```
+
+
+```{r}
+
+credit_bank <- read.csv("C:/Users/moham/Desktop/9raya 3/M2/Supervised learning/Projet_23/bank_credit.csv",
+     col.names = c("Statut du compte courant existant", 
+                    "Duree en mois",
+                    "Historique de credit",
+                    "Objectif",
+                    "Montant du credit", 
+                    "Compte d'epargne", 
+                    "Emploi actuel depuis",
+                    "Taux de versement en pourcentage du revenu disponible", 
+                    "Statut personnel et sexe", 
+                    "Autres debiteurs", 
+                    "Residence actuelle",
+                    "Propriete", 
+                    "Age en annees", 
+                    "Autres plans de versement", 
+                    "Logement",
+                    "Nombre de credits existants dans cette banque", 
+                    "Travail",
+                    "Nombre de personnes a charge",
+                    "Telephone",
+                    "Travailleur etranger",
+                    "y"))
+
+
+```
+
+
+### Au premier vu , la premiere chose qu'on doit faire est de convertir les types des variables aux types appropriés
+
+
+```{r}
+
+df <- credit_bank %>%
+  mutate(Statut.du.compte.courant.existant = factor(Statut.du.compte.courant.existant, 
+                                                    labels = c("< 0 DM", "0 <= ... < 200 DM", 
+                                                               ">= 200 DM ", "no checking account")))%>%
+  
+  mutate(Historique.de.credit = factor(Historique.de.credit, 
+                                       labels = c("no credits taken","all credits at this bank paid back
+                                       duly", "existing credits paid back duly till now", "delay in
+                                       paying off in the past", "critical account")))%>%
+  
+  mutate(Objectif = factor(Objectif, labels = c("car(new)", 
+                                                "car(used)",
+                                                "furniture/equipment",
+                                                "radio/television",
+                                                "domestic appliances",
+                                                "repairs",
+                                                "education", 
+                                                "retraining",
+                                                "business",
+                                                "others")))%>%
+  
+  mutate(Compte.d.epargne = factor(Compte.d.epargne, labels = c("<  100 DM", "100 <= ... < 500 DM", 
+                                                                "500 <= ... < 1000 DM", ">= 1000 DM",
+                                                                "no savings account")))%>%
+  
+  mutate(Emploi.actuel.depuis = factor(Emploi.actuel.depuis, labels = c("unemployed", "< 1 year", "< 4 year", "< 7 year", 
+                                                          ">= 7 years")))%>%
+  
+  mutate(Statut.personnel.et.sexe = factor(Statut.personnel.et.sexe, 
+                                           labels = c("male: divorced/separated", 
+                                           "female: divorced/separated/married",
+                                           "male: single",
+                                           "male: married/widowed")))%>%
+  
+  mutate(Autres.debiteurs = factor(Autres.debiteurs , labels = c("none", "co-applicant", "guarantor")))%>%
+  
+  mutate(Propriete = factor(Propriete, labels = c("real estate", "building society savings/life insurance",
+                                                  "car or other", "unknown / no property")))%>%
+  
+  mutate(Autres.plans.de.versement = factor(Autres.plans.de.versement, labels = c("bank", 
+                                                                                  "stores",
+                                                                                  "none")))%>%
+  
+  mutate(Logement = factor(Logement, labels = c("rent", "own", "for free")))%>%
+  
+  mutate(Travail = factor(Travail, labels = c("unemployed/ unskilled - non-resident",
+                                                          "unskilled - resident",
+                                                          "skilled employee / official",
+                                                          "management/ self-employed/highly qualified
+                                                           employee/ officer")))%>%
+  
+  mutate(Telephone = factor(Telephone, labels = c("none", "yes")))%>%
+  
+  mutate(Travailleur.etranger = factor(Travailleur.etranger, labels = c("yes", "no")))%>%
+  
+  mutate(y = factor(y, labels=c("Good", "Bad")))
+
+```
+
+
+```{r}
+skim_without_charts(df)
+```
+
+### On peux remarquer l'existance de déséquilibre des classes pour la variable à expliquer y
+### On remarque qu'on n'a pas de valeurs manquantes
+### On peux remarquer la possibilité de trouver des outliers pour la vaiables Campaign et duration
+
+
+#==================================================================================================
+# Analyse Uni-varié:
+#==================================================================================================
+
+#Variables quantitatives:
+#==================================================================================================
+
+```{r}
+
+egg::ggarrange(df%>%
+  ggplot(aes(Montant.du.credit))+
+  geom_histogram(),
+  df%>%
+  ggplot(aes(Montant.du.credit))+
+  geom_boxplot(), 
+  heights = 2:1)
+
+egg::ggarrange(df%>%
+  ggplot(aes(log(Montant.du.credit)))+
+  geom_histogram(),
+  df%>%
+  ggplot(aes(log(Montant.du.credit)))+
+  geom_boxplot(), 
+  heights = 2:1)
+
+```
+
+### D'apres l'histogramme, la varibale "duration" est étale à gauche, ça sera mieux d'appliquer une transformation (log, BoxCox) pour que resoudre ce problem 
+
+### On remarque une amelioration lors de l'application de log sur la variable duration, la densité rassemble celle de la loi normal 
+
+
+
+```{r}
+egg::ggarrange(df%>%
+  ggplot(aes(Age.en.annees))+
+  geom_histogram(fill = 'aquamarine3'
+                    , color = 'black'),
+  df%>%
+  ggplot(aes(Age.en.annees))+
+  geom_boxplot(), 
+  heights = 2:1)
+
+egg::ggarrange(df%>%
+  ggplot(aes(log(Age.en.annees)))+
+  geom_histogram(fill = 'aquamarine3'
+                    , color = 'black'),
+  df%>%
+  ggplot(aes(log(Age.en.annees)))+
+  geom_boxplot(), 
+  heights = 2:1)
+
+```
+
+```{r}
+egg::ggarrange(df%>%
+  ggplot(aes(Duree.en.mois))+
+  geom_histogram(fill = 'aquamarine3'
+                    , color = 'black'),
+  df%>%
+  ggplot(aes(Duree.en.mois))+
+  geom_boxplot(), 
+  heights = 2:1)
+
+egg::ggarrange(df%>%
+  ggplot(aes(log(Duree.en.mois)))+
+  geom_histogram(fill = 'aquamarine3'
+                    , color = 'black'),
+  df%>%
+  ggplot(aes(log(Duree.en.mois)))+
+  geom_boxplot(), 
+  heights = 2:1)
+
+
+```
+
+
+### on peux remarquer l'existance des outliers pour certaines variables et l'intervalle inter-quartiles differe d'une variable à une autre donc ça sera mieux si on applique la normalisation pour les rendre sur le meme echelle
+
+#Variables Categielle
+#==================================================================================================
+
+```{r}
+df%>%
+  ggplot(aes(Statut.du.compte.courant.existant))+
+  geom_bar()+
+  coord_flip()
+
+df%>%
+  ggplot(aes(Historique.de.credit))+
+  geom_bar()+
+  coord_flip()
+
+df%>%
+  ggplot(aes(Objectif))+
+  geom_bar()+
+  coord_flip()
+
+df%>%
+  ggplot(aes(Compte.d.epargne))+
+  geom_bar()+
+  coord_flip()
+
+df%>%
+  ggplot(aes(Emploi.actuel.depuis))+
+  geom_bar()+
+  coord_flip()
+
+df%>%
+  ggplot(aes(Statut.personnel.et.sexe))+
+  geom_bar()+
+  coord_flip()
+
+df%>%
+  ggplot(aes(Autres.debiteurs))+
+  geom_bar()+
+  coord_flip()
+
+df%>%
+  ggplot(aes(Propriete))+
+  geom_bar()+
+  coord_flip()
+
+df%>%
+  ggplot(aes(Autres.plans.de.versement))+
+  geom_bar()+
+  coord_flip()
+
+
+df%>%
+  ggplot(aes(Logement))+
+  geom_bar()+
+  coord_flip()
+
+df%>%
+  ggplot(aes(Travail))+
+  geom_bar()+
+  coord_flip()
+
+df%>%
+  ggplot(aes(Telephone))+
+  geom_bar()+
+  coord_flip()
+
+df%>%
+  ggplot(aes(Travailleur.etranger))+
+  geom_bar()+
+  coord_flip()
+
+df%>%
+  ggplot(aes(y))+
+  geom_bar()+
+  coord_flip()
+
+```
+
+### On remarque il y a une grande déséquilibre entre les classes de la variables Y, la methode la plus approprié pour resoudre le problem est de faire l'oversampling pour ne pas perdre une grande quantité de données
+
+
+#==================================================================================================
+# Analyse Bi-varié
+#==================================================================================================
+
+#Variables à prédire x variables quantitatives
+
+#==================================================================================================
+
+```{r}
+df%>%
+  ggplot(aes(Duree.en.mois, y))+
+  geom_boxplot()
+
+
+df%>%
+  ggplot(aes(Duree.en.mois,fill = y))+
+  geom_histogram(position = "identity", alpha = 0.4)
+
+```
+
+
+```{r}
+df%>%
+  ggplot(aes(Taux.de.versement.en.pourcentage.du.revenu.disponible, y))+
+  geom_boxplot()
+
+
+df%>%
+  ggplot(aes(Taux.de.versement.en.pourcentage.du.revenu.disponible,fill = y))+
+  geom_histogram(position = "identity", alpha = 0.4)
+
+
+
+```
+
+
+
+
+
+```{r}
+df%>%
+  ggplot(aes(Residence.actuelle, y))+
+  geom_boxplot()
+
+
+df%>%
+  ggplot(aes(Residence.actuelle,fill = y))+
+  geom_histogram(position = "identity", alpha = 0.4)
+
+t.test(Residence.actuelle ~ y, data=df)
+
+```
+
+
+
+```{r}
+df%>%
+  ggplot(aes(Nombre.de.credits.existants.dans.cette.banque, y))+
+  geom_boxplot()
+
+
+df%>%
+  ggplot(aes(Nombre.de.credits.existants.dans.cette.banque,fill = y))+
+  geom_histogram(position = "identity", alpha = 0.4)
+
+t.test(Nombre.de.credits.existants.dans.cette.banque ~ y, data=df)
+
+```
+
+
+```{r}
+df%>%
+  ggplot(aes(Nombre.de.personnes.a.charge, y))+
+  geom_boxplot()
+
+
+df%>%
+  ggplot(aes(Nombre.de.personnes.a.charge,fill = y))+
+  geom_histogram(position = "identity", alpha = 0.4)
+
+
+
+table(df$Nombre.de.personnes.a.charge, df$y)
+
+
+t.test(Nombre.de.personnes.a.charge ~ y, data=df)
+
+```
+
+
+
+```{r}
+df%>%
+  ggplot(aes(Age.en.annees, y))+
+  geom_boxplot()
+
+
+df%>%
+  ggplot(aes(Age.en.annees,fill = y))+
+  geom_histogram(position = "identity", alpha = 0.4)
+
+
+```
+
+### la variables Age ne nous permet pas de distinguer les 2 groupes de la variables y puisque d'apres le Boxplot les medianes des 2 groupes ne semblent pas significatives
+
+### Avec le test de Student on peut confirmer que la differences des moyens entre les 2 groupes est significativement different de 0
+
+```{r}
+df%>%
+  ggplot(aes(Montant.du.credit, y))+
+  geom_boxplot()
+
+
+df%>%
+  ggplot(aes(Montant.du.credit,fill = y))+
+  geom_histogram(position = "identity", alpha = 0.4)
+
+```
+
+
+
+
+### On remarque que la differences entre le moyen des 2 groupes de la variable y en fonction de la variable campaign n'est pas sig
+
+### Mais avec le test de Student on peux conclure que la difference entre le moyen est significativement different de 0
+
+
+### D'apres le test de Student ,  on peux conclure que la difference entre le moyen est significativement different de 0
+
+
+#Variables à prédire x variables categorielle
+#==================================================================================================
+
+
+```{r}
+
+ggplot(df, aes(x = Statut.du.compte.courant.existant, fill = y)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+  coord_flip()
+
+ggplot(df, aes(x = Historique.de.credit, fill = y)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+  coord_flip()
+
+ggplot(df, aes(x = Objectif, fill = y)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+  coord_flip()
+
+ggplot(df, aes(x = Compte.d.epargne, fill = y)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+  coord_flip()
+
+ggplot(df, aes(x = Emploi.actuel.depuis, fill = y)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+  coord_flip()
+
+ggplot(df, aes(x = Statut.personnel.et.sexe, fill = y)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+  coord_flip()
+
+ggplot(df, aes(x = Autres.debiteurs, fill = y)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+  coord_flip()
+
+ggplot(df, aes(x = Propriete, fill = y)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+  coord_flip()
+
+
+ggplot(df, aes(x = Autres.plans.de.versement, fill = y)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+  coord_flip()
+
+ggplot(df, aes(x = Logement, fill = y)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+  coord_flip()
+
+ggplot(df, aes(x = Travail, fill = y)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+  coord_flip()
+
+ggplot(df, aes(x = Telephone, fill = y)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+  coord_flip()
+
+ggplot(df, aes(x = Travailleur.etranger, fill = y)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+  coord_flip()
+
+```
+
+
+#WOE
+#==================================================================================================
+
+```{r}
+
+# Create a table to compute WoE
+woe_table <- table(df$Travailleur.etranger, df$y)
+
+# Calculate event rate and non-event rate
+event_rate <- prop.table(woe_table, margin = 1)
+non_event_rate <- prop.table(woe_table, margin = 2)[,1]
+
+# Calculate WoE
+woe <- log(event_rate[,1] / non_event_rate)
+
+# Create a dataframe to display the results
+woe_data <- data.frame(Category = names(woe), 
+                       Events = woe_table[,1], 
+                       Non_Events = woe_table[,2], 
+                       Event_Rate = event_rate[,1], 
+                       Non_Event_Rate = non_event_rate, 
+                       WoE = woe)
+
+# Display the WoE values
+print(woe_data)
+
+```
+
+ 
+
+### on remarque que pour certaines variables, certaines categories ne sont pas significatives au sens d'effectifes et n'ajoute pas d'information, ça sera mieux de les eliminer 
+
+### les variables month et days n'ajoutes pas d'information pour repondre à la question "est que le client a-t-il souscrit un dépôt à terme à notre bank?" donc ils ne seront pas inclus dans le modèle
+
+
+
+
+
+#Etude de correlation
+#==================================================================================================
+
+
+```{r}
+
+df%>%
+  select_if(is.numeric)%>%
+  cor()%>%
+  as.data.frame()
+
+df%>%
+  select_if(is.numeric)%>%
+  cor()%>%
+  ggcorrplot::ggcorrplot()
+  
+```
+
+
+
+
+### Ici On elimine les variables correlés et unitiles pour notre modèle
+
+```{r}
+df1 <- df%>%
+  dplyr::select(-Residence.actuelle, - Nombre.de.personnes.a.charge, -Nombre.de.credits.existants.dans.cette.banque, 
+                -Telephone)
+```
+
+### Ici on applique la transformation Log sur les variables avec les outliers
+
+```{r}
+
+df1$Montant.du.credit <- log(df1$Montant.du.credit)
+df1$Age.en.annees <- log(df1$Age.en.annees)
+df1$Duree.en.mois <- log(df1$Duree.en.mois)
+
+
+```
+
+
+
+#==================================================================================================
+# Machine Learning :
+
+#==================================================================================================
+
+### Ici On divise les données
+
+```{r}
+bank_split <- initial_split(df1, strata = y)
+
+bank_train_data <- training(bank_split)
+
+bank_test_data <- testing(bank_split)
+
+bank_split
+
+```
+
+## Ici On va spécifier la recette a utiliser dur les données :
+
+### - appliquer la normalisation sur les variables quantitatives
+### - eliminer les classes qui ne sont pas frequent pour une variable categorielle pour une seuil de 0.05
+### - appliquer la dummification sur les variables catégorielles
+### - règler le problem de déséquilibre des classes par la méthodes de sous-échantillonage downsample
+### - eliminer s'il y a une variables une variance égale à 0
+
+
+### - On utilise aussi 10-fold Cross Validation pour entrainer les modèle pour éviter le problem d'Overfitting.
+
+```{r}
+bank_rec <- recipe(y ~., data = bank_train_data)%>%
+  step_normalize(all_numeric_predictors())%>%
+  step_dummy(all_nominal_predictors(), one_hot = TRUE)%>%
+  step_smote(y)%>%
+  step_zv(all_predictors())%>%
+  prep()
+  
+bank_rec
+
+head(juice(bank_rec))
+
+bank_folds <- vfold_cv(juice(bank_rec) , strata = y, v =10)
+
+```
+
+
+```{r}
+
+juice(bank_rec)%>%count(y)
+
+```
+
+### On remarque que les classes sont maintenant équilibrés
+
+```{r}
+
+doParallel::registerDoParallel()
+
+```
+
+
+## la Regression Logistique:
+
+```{r}
+
+glm_spect <- logistic_reg()%>%
+  set_engine("glm")
+
+set.seed(234)
+
+glm_res <- glm_spect%>%
+  fit_resamples(y~.,
+                resamples = bank_folds,
+                metrics = metric_set(yardstick::accuracy, yardstick::roc_auc,yardstick::specificity,
+                                     yardstick::sensitivity),
+                control = control_resamples(save_pred = TRUE))
+  
+
+glm_res%>%collect_metrics()
+
+```
+
+## ici On Tune les hyperparamétres de la Regression Logistique (Penalty et Mixture):
+
+### - Penalty (Pénalité): Un nombre non négatif représentant la quantité totale de régularisation.
+
+### - Mixture (Mélange): Un nombre entre zéro et un (inclus) qui représente la proportion de régularisation L1 (c'est-à-dire lasso) dans le modèle.
+
+```{r}
+
+glm_tune_spect <- logistic_reg(
+  penalty = tune(),
+  mixture =  tune())%>%
+  set_engine("glmnet")
+
+glm_grids <- grid_regular(dials::penalty(),  mixture(), levels = 15)
+
+set.seed(234)
+
+glm_tune_res <- tune_grid(
+  glm_tune_spect,
+  y~.,
+  resamples = bank_folds,
+  grid = glm_grids,
+  metrics =metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::specificity, 
+                      yardstick::sensitivity),
+  control = control_resamples(save_pred = TRUE))
+
+show_best(glm_tune_res, "accuracy")
+
+show_best(glm_tune_res, "roc_auc")
+
+
+```
+
+
+
+
+```{r}
+best_glm_params <- select_best(glm_tune_res, metric = "roc_auc")
+
+glm_final <- finalize_model(glm_tune_spect, best_glm_params)
+
+final_glm_res <- glm_final %>%
+  fit_resamples(y~.,
+  resamples = bank_folds,
+  metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::specificity, 
+                       yardstick::sensitivity),
+  control = control_resamples(save_pred = TRUE))
+
+final_glm_res%>%collect_metrics()
+```
+
+## On remarque que malgré le tunning il n'ya pas une amélioration majeur dans les scores, avec un score de ROC_AUC = 0.854, et Accuracy = 0.924 
+
+## On peux toutefois dire que la regression logistique donne des resultats respectable
+
+
+
+
+
+# L'arbre de Decision:
+
+```{r}
+tree_spect <- decision_tree()%>%
+  set_engine("rpart")%>%
+  set_mode("classification")
+
+set.seed(234)
+
+tree_res <- tree_spect%>%
+  fit_resamples(y~.,
+  resamples = bank_folds,
+  metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::specificity, 
+                       yardstick::sensitivity),
+  control = control_resamples(save_pred = TRUE))
+
+tree_res %>% collect_metrics()
+
+```
+
+```{r}
+show_model_info("decision_tree")
+```
+
+## Pour le cas d'arbre de decision les hyperparametres sont:
+
+### - cost_complexity: Le paramètre de complexité (cp) est utilisé pour contrôler la taille de l'arbre de décision et pour sélectionner la taille optimale de l'arbre. ,
+### - tree_depth: La profondeur maximale d'un arbre ,
+### - min_n: Le nombre minimum de points de données dans un nœud qui sont requis pour que le nœud soit divisé further. 
+
+```{r}
+
+tree_tune_spect <- decision_tree(
+     cost_complexity = tune(),
+     tree_depth = tune(),
+     min_n = tune())%>%
+     set_engine("rpart")%>%
+     set_mode("classification")
+
+
+tree_grids <- grid_regular(cost_complexity(), tree_depth(), min_n(), levels = 5)
+
+set.seed(234)
+
+tree_tune_res <- tune_grid(
+  tree_tune_spect,
+  y ~., 
+  resamples = bank_folds,
+  grid = tree_grids,
+  metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+  control = control_resamples(save_pred = TRUE))
+                
+show_best(tree_tune_res, metric = "roc_auc")
+
+show_best(tree_tune_res, metric = "accuracy")
+
+
+```
+
+
+```{r}
+
+best_tree_params <- select_best(tree_tune_res, metric = "roc_auc")
+
+tree_final <- finalize_model(tree_tune_spect, best_tree_params)
+
+final_tree_res <-  tree_final %>%
+  fit_resamples(y~.,
+  resamples = bank_folds,
+  metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+  control = control_resamples(save_pred = TRUE))
+
+final_tree_res%>%collect_metrics()
+```
+
+## Avec les hyper paramètres qui maximise le Roc_Auc On remarque une bonne amélioration pour les scores, principalement le Roc_Auc est égale à 0.932, Accuracy = 0.87, sensitivity = 0.85 et specificity = 0.89
+
+## L'arbre de Decision aussi donne un performance respectable
+
+# Foret Aletoire:
+
+```{r}
+
+rf_spect <- rand_forest(trees = 1000)%>%
+  set_engine("ranger")%>%
+  set_mode("classification")
+
+set.seed(234)
+
+rf_res <- rf_spect %>%
+  fit_resamples(y~.,
+                resamples = bank_folds,
+                metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+                control = control_resamples(save_pred = TRUE))
+
+rf_res%>%collect_metrics()
+
+```
+
+
+```{r}
+show_model_info("rand_forest")
+```
+
+## On remarque que la foret aleatoire donne les meilleurs résultats globales jusqu'à présent avec un Acuuracy = 0.88, Roc_Auc = 0.944, sensitivity = 0.839 et specificity = 0.93
+
+## Ici les hyperparametres sont : 
+### - trees: Le nombre d'arbres contenus dans l'ensemble,
+### - min_n: Le nombre minimum de points de données dans un nœud qui sont nécessaires pour que le nœud soit divisé davantage.
+
+```{r}
+
+rf_tune_spect <- rand_forest(
+  trees = tune(), 
+  min_n = tune())%>%
+  set_engine("ranger")%>%
+  set_mode("classification")
+
+rf_grids <- grid_regular(trees(), min_n(), levels = 10)
+
+set.seed(234)
+
+rf_tune_res <- tune_grid(
+  rf_tune_spect,
+  y~.,
+  resamples = bank_folds,
+  grid = rf_grids,
+  metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+  control = control_resamples(save_pred = TRUE))
+
+
+show_best(rf_tune_res, "accuracy")
+
+show_best(rf_tune_res, "roc_auc")
+
+
+```
+
+
+```{r}
+
+best_rf_params <- select_best(rf_tune_res, "roc_auc")
+
+ rf_final <- finalize_model(rf_tune_spect, best_rf_params) 
+
+final_rf_res <- rf_final%>%
+  fit_resamples(y ~.,
+                resamples = bank_folds,
+                metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+                control = control_resamples(save_pred = TRUE))
+
+final_rf_res%>%collect_metrics()
+```
+
+## Avec le Tuning les résultats de la foret aleatoire ne sont significativement pas améliorer et on a obtenue
+
+##un Acuuracy = 0.885, Roc_Auc = 0.944, sensitivity = 0.837 et specificity = 0.933
+
+
+## Le XGBoost:
+
+```{r}
+bos_spect <- boost_tree(trees = 1000)%>%
+  set_engine("xgboost")%>%
+  set_mode("classification")
+
+library(xgboost)
+
+set.seed(234)
+bos_res  <- bos_spect%>%
+  fit_resamples(y~.,
+                resamples = bank_folds,
+                metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+                control = control_resamples(save_pred = TRUE))
+
+
+bos_res%>%collect_metrics()
+
+```
+
+```{r}
+show_model_info("boost_tree")
+```
+
+
+## Ici les hyperparametres sont : 
+
+### - tree_depth : La profondeur maximale de l'arbre (c'est-à-dire le nombre de divisions).
+### - learn_rate : La vitesse à laquelle l'algorithme d'optimisation s'adapte d'une itération à l'autre.
+### - mtry: Le nombre de prédicteurs qui seront échantillonnés aléatoirement à chaque fractionnement,
+### - min_n: Le nombre minimum de points de données dans un nœud qui sont nécessaires pour que le nœud soit divisé davantage.
+
+```{r}
+
+bos_tune_spect <- boost_tree(trees = 1000, tree_depth = tune(),
+                        learn_rate = tune(), stop_iter = tune())%>%
+  set_engine("xgboost")%>%
+  set_mode("classification")
+
+bos_grids <- grid_regular(
+  stop_iter(),
+  tree_depth(),
+  learn_rate(),
+  levels = 8
+)
+
+set.seed(234)
+
+bos_tune_res  <- tune_grid(
+  bos_tune_spect,
+  y~.,
+  resamples = bank_folds,
+  grid = bos_grids,
+  metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+  control = control_resamples(save_pred = TRUE))
+
+show_best(bos_tune_res, "accuracy")
+
+show_best(bos_tune_res, "roc_auc")
+
+
+
+```
+
+```{r}
+best_bos_params <- select_best(bos_tune_res, "roc_auc")
+
+ bos_final <- finalize_model(bos_tune_spect, best_bos_params) 
+
+final_bos_res <- bos_final%>%
+  fit_resamples(y ~.,
+                resamples = bank_folds,
+                metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+                control = control_resamples(save_pred = TRUE))
+
+final_bos_res%>%collect_metrics()
+```
+
+```{r}
+best_bos_params <- select_best(bos_tune_res, "accuracy")
+
+ bos_final <- finalize_model(bos_tune_spect, best_bos_params) 
+
+final_bos_res <- bos_final%>%
+  fit_resamples(y ~.,
+                resamples = bank_folds,
+                metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+                control = control_resamples(save_pred = TRUE))
+
+final_bos_res%>%collect_metrics()
+```
+
+
+
+```{r}
+best_bos_params <- select_best(bos_tune_res, "accuracy")
+
+ bos_final <- finalize_model(bos_tune_spect, best_bos_params) 
+
+final_bos_res <- bos_final%>%
+  fit_resamples(y ~.,
+                resamples = bank_folds,
+                metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+                control = control_resamples(save_pred = TRUE))
+
+final_bos_res%>%collect_metrics()
+```
+
+
+## Comme le cas de la foret aleatoire , Ici on remarque une légère amélioration, Le modele de XGBoost donne des bonnes résultats, un Acuuracy = 0.882, Roc_Auc = 0.943, sensitivity = 0.854 et specificity = 0.91
+
+## SVM Lineaire:
+
+```{r}
+svm_lin_spect <- svm_linear()%>%
+  set_engine("kernlab")%>%
+  set_mode("classification")
+
+set.seed(234)
+
+svm_lin_res <- svm_lin_spect%>%
+    fit_resamples(y~.,
+                resamples = bank_folds,
+                metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+                control = control_resamples(save_pred = TRUE))
+
+
+svm_lin_res%>%collect_metrics()
+
+```
+
+```{r}
+show_model_info("svm_linear")
+```
+
+
+## Ici les hyperparametres sont:
+
+### -cost : Le coût de la prédiction d'un échantillon à l'intérieur ou à l'extérieur de la marge.
+
+```{r}
+svm_tune_spect <- svm_linear(
+  cost = tune())%>%
+  set_engine("kernlab")%>%
+  set_mode("classification")
+
+svm_grids <- grid_regular(cost(), levels = 100)
+
+set.seed(234)
+
+svm_tune_res <- tune_grid(
+  svm_tune_spect,
+  y ~., 
+  resamples = bank_folds,
+  grid = svm_grids,
+  metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+  control = control_resamples(save_pred = TRUE))
+    
+            
+show_best(svm_tune_res, metric = "accuracy")
+            
+show_best(svm_tune_res, metric = "roc_auc")
+
+
+```
+
+
+```{r}
+best_svm_params <- select_best(svm_tune_res, metric = "roc_auc")
+
+
+ svm_final <- finalize_model(svm_tune_spect, best_svm_params)
+
+final_svm_res <- svm_final %>%
+  fit_resamples(y~.,
+  resamples = bank_folds,
+  metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+  control = control_resamples(save_pred = TRUE))
+
+final_svm_res%>%collect_metrics()
+```
+
+### le modèle SVM Linéaire donne des bons resultats aussi avec un Accuracy = 0.86 et Roc_Auc = 0.924
+
+## SVM Kernel:
+
+```{r}
+
+svm_rbf_spect <- svm_rbf()%>%
+  set_engine("kernlab")%>%
+  set_mode("classification")
+
+set.seed(234)
+
+svm_rbf_res <- svm_rbf_spect%>%
+    fit_resamples(y~.,
+                resamples = bank_folds,
+                metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+                control = control_resamples(save_pred = TRUE))
+
+
+svm_rbf_res%>%collect_metrics()
+
+```
+
+```{r}
+show_model_info("svm_rbf")
+```
+
+
+## Ici les hyperparametre sont : 
+### - coût : Le coût de la prédiction d'un échantillon à l'intérieur ou du mauvais côté de la marge.
+### - rbf_sigma : Le paramètre de précision pour la fonction de base radiale.
+
+
+```{r}
+
+svm_rbf_tune_spect <- svm_rbf(
+  cost = tune(),
+  rbf_sigma = tune())%>%
+  set_engine("kernlab")%>%
+  set_mode("classification")
+
+svm_rbf_grids <- grid_regular(cost(), rbf_sigma(), levels = 15)
+
+set.seed(234)
+
+svm_rbf_tune_res <- tune_grid(
+  svm_rbf_tune_spect,
+  y ~., 
+  resamples = bank_folds,
+  grid = svm_rbf_grids,
+  metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+  control = control_resamples(save_pred = TRUE))
+                
+show_best(svm_rbf_tune_res, metric = "roc_auc")
+
+show_best(svm_rbf_tune_res, "accuracy")
+
+
+
+```
+
+
+```{r}
+
+best_svm_rbf_params <- select_best(svm_rbf_tune_res, metric = "roc_auc")
+
+
+svm_rbf_final <- finalize_model(svm_rbf_tune_spect, best_svm_rbf_params)
+
+final_svm_rbf_res <- svm_rbf_final %>%
+  fit_resamples(y~.,
+  resamples = bank_folds,
+  metrics = metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::sensitivity,
+                       yardstick::specificity, yardstick::f_meas),
+  control = control_resamples(save_pred = TRUE))
+
+final_svm_rbf_res%>%collect_metrics()
+```
+
+### le modèle SVM kernel donne des bons resultats aussi avec un Accuracy = 0.861 et Roc_Auc = 0.926 et specificity = 0.906
+
+
+
+
+
+
+
+# Conclusion:
+
+## Après l’application de tous ces modèles sans et avec le Tuning des hyper paramètre, les meilleurs entre eux sont :
+
+```{r}
+
+df1 <- final_glm_res%>%
+  collect_metrics()%>%
+  select(.metric, mean)%>%
+  rename('Regression Logistique' = 'mean')%>%
+  rename('scores' = '.metric')
+
+df2 <- final_tree_res%>%
+  collect_metrics()%>%
+  select(.metric, mean)%>%
+  rename('Arbre de Decision' = 'mean')%>%
+  rename('scores' = '.metric')
+
+
+df3 <-final_rf_res%>% 
+collect_metrics()%>%
+select(.metric,mean)%>%
+rename('Foret Aleatoire' = 'mean')%>%
+rename('scores' = '.metric')
+
+
+df4 <- final_bos_res%>% 
+  collect_metrics()%>%
+  select(.metric, mean)%>%
+  rename('XGBoost' = 'mean')%>%
+  rename('scores' = '.metric')
+
+df5 <- final_svm_res%>% 
+collect_metrics()%>%
+select(.metric, mean)%>%
+rename('SVM' = 'mean')%>%
+rename('scores' = '.metric')
+
+df6 <- final_svm_rbf_res%>% 
+collect_metrics()%>%
+select(.metric,mean)%>%
+rename('SVM Kernel' = 'mean')%>%
+rename('scores' = '.metric')
+
+merge(merge(merge(df1, df2, by = c("scores")), merge(df3, df4, by = c("scores")), by = c("scores")),merge(df5, df6, by = c("scores")), by = c("scores"))
+      
+```
+
+
+```{r}
+
+final_rf_res%>%
+  unnest(.predictions) %>%
+  mutate(model= "Forêt aléatoire") %>%
+  bind_rows(final_bos_res%>%
+              unnest(.predictions)%>%
+              mutate(model= "XGBoost"))%>%
+  bind_rows(final_svm_res%>%
+              unnest(.predictions)%>%
+              mutate(model= "SVM"))%>%
+  bind_rows(final_svm_rbf_res%>%
+             unnest(.predictions)%>%
+             mutate(model= "SVM Kernel"))%>%
+  bind_rows(final_glm_res%>%
+             unnest(.predictions)%>%
+             mutate(model= "Regression Logistique"))%>%
+  bind_rows(final_tree_res%>%
+             unnest(.predictions)%>%
+             mutate(model= "Arbre de Decision"))%>%
+  group_by(model)%>%
+  roc_curve(y, .pred_Good)%>%
+  autoplot()
+
+```
+
+## D'apres le tableau tous les modèles ont donné des bonnes results, on peut aussi remarquer qu'il sont très proches sur tout les métriques de mesures de performance
+
+## mais les deux meilleurs modèles sont la foret aléatoire et el XGBoost donnent les meilleurs resultats
+
+
+## Pour choisir le meilleur modèle pour notre étude de cas on vas appliquer les deux sur le base de test et comparer les resultats finale
+
+
+# Performance des modèle sur les base de Test
+
+```{r}
+rf_wf <- workflow()%>%
+  add_recipe(bank_rec)%>%
+  add_model(rf_final)%>%
+  last_fit(bank_split)
+
+
+bos_wf <- workflow()%>%
+  add_recipe(bank_rec)%>%
+  add_model(bos_final)%>%
+  last_fit(bank_split)
+
+svm_rbf_wf <- workflow()%>%
+  add_recipe(bank_rec)%>%
+  add_model(svm_rbf_final )%>%
+  last_fit(bank_split)
+
+df20 <- bos_wf %>%
+  collect_metrics()%>%
+  select(.metric, .estimate)%>%
+  rename('Boosting' = '.estimate')%>%
+  rename('scores' = '.metric')
+
+df10 <- rf_wf %>%
+  collect_metrics()%>%
+  select(.metric,.estimate)%>%
+  rename(' Foret Aleatoire' = '.estimate')%>%
+  rename('scores' = '.metric')
+
+df30 <- svm_rbf_wf %>%
+  collect_metrics()%>%
+  select(.metric,.estimate)%>%
+  rename(' SVM RBF' = '.estimate')%>%
+  rename('scores' = '.metric')
+
+merge(merge(df10, df20, by = c("scores")),df30, by = c("scores"))
+
+```
+
+
+##Comme prévu le 5-fold cross validation a donné des résultats proches de ce qu’on a trouvé sur le Test set, Les deux modèles donnent des scores proches mais on peut conclure que le XGBoost est le meilleur modèle.
+
+# L'importance des variables :
+
+```{r}
+rf_vip_spect <- rand_forest(
+  trees = tune(),
+  min_n = tune())%>%
+  set_engine("ranger",importance= "permutation")%>%
+  set_mode("classification")
+
+rf_wf1 <- workflow()%>%
+  add_recipe(bank_rec)%>%
+  add_model(rf_vip_spect)
+
+final_vip_wf <- finalize_workflow(rf_wf1, best_rf_params)
+
+
+final_vip_wf %>%
+  fit(data = bank_train_data)%>%
+  pull_workflow_fit()%>%
+  vip::vip(geom = "point")
+
+```
+##On Remarque que la duration de dernier appel est la variable la plus importante dans notre modèle, plus l’appel est long plus c’est un indicateur que le client est intéressé et il est probable que le client va souscrit au service, suivi par les variable euribor3m et cons.price.idx et cons.price.idx donc on peut comprendre et c’est evident que le prix et la confiance des clients joue un rôle très important pour prendre la décision de souscrire au service.
+
+
