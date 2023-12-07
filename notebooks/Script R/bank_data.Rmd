@@ -17,13 +17,11 @@ library(tidymodels)
 library(themis)
 library(skimr)
 library(readr)
-
 ```
 
 
 ```{r}
-
-credit_bank <- read.csv("C:/Users/moham/Desktop/9raya 3/M2/Supervised learning/Projet_23/bank_credit.csv",
+credit_bank <- read.csv("./../Donnees_credits_bancaires/german.csv",
      col.names = c("Statut du compte courant existant", 
                     "Duree en mois",
                     "Historique de credit",
@@ -45,8 +43,7 @@ credit_bank <- read.csv("C:/Users/moham/Desktop/9raya 3/M2/Supervised learning/P
                     "Telephone",
                     "Travailleur etranger",
                     "y"))
-
-
+head(credit_bank)
 ```
 
 
@@ -54,7 +51,6 @@ credit_bank <- read.csv("C:/Users/moham/Desktop/9raya 3/M2/Supervised learning/P
 
 
 ```{r}
-
 df <- credit_bank %>%
   mutate(Statut.du.compte.courant.existant = factor(Statut.du.compte.courant.existant, 
                                                     labels = c("< 0 DM", "0 <= ... < 200 DM", 
