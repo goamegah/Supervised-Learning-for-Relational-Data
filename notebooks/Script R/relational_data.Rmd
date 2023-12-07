@@ -1,0 +1,346 @@
+---
+title: "Projet_supervised_learning"
+output: pdf_document
+date: '2023-11-15'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidymodels)
+
+library(rmatio)
+
+library(skimr)
+```
+
+```{r}
+data <- read.mat('C:/Users/moham/Desktop/9raya 3/M2/Supervised learning/Projet_23/Donnees_relationnelles/Cora.mat')
+
+```
+
+
+```{r}
+df_w <- as.data.frame(data$W)
+
+head(df_w)
+
+df_fea <- as.data.frame(data$fea)
+
+head(df_fea)
+
+df_gnd <- as.data.frame(data$gnd)
+                        
+names(df_gnd)[1] <- "class"
+
+head(df_gnd)
+```
+
+# Première partie:
+
+```{r}
+
+df1 <- cbind(df_w, df_gnd)
+
+df1$class <- as.factor(df1$class)
+
+head(df1)
+
+```
+
+```{r}
+table(df1$class)%>%
+  
+```
+
+
+
+```{r}
+
+p1_split <- initial_split(df1, strata = class)
+
+p1_train <- training(p1_split)
+
+p1_test <- testing(p1_split)
+
+p1_fold <- vfold_cv(p1_train, strata = class, v = 5)
+
+```
+
+
+```{r}
+p1_rec <- recipe(class~., data = df1)%>%
+  themis::step_smote(class)%>%
+  prep()
+
+p1_rec
+
+
+```
+
+
+```{r}
+
+xg_p1_spec <- boost_tree()%>%
+  set_engine("xgboost")%>%
+  set_mode("classification")
+  
+set.seed(123)
+
+xg_p1_res <- xg_p1_spec%>%
+  fit_resamples(class~.,
+                resamples = p1_fold,
+                  metrics =metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::specificity, 
+                      yardstick::sensitivity),
+                control = control_resamples(save_pred = TRUE))
+
+
+xg_p1_res%>%collect_metrics()
+
+
+```
+
+```{r}
+show_model_info('multinom_reg')
+```
+
+
+```{r}
+
+lg_p1_spec <- multinom_reg(penalty = tune(), mixture= tune())%>%
+  set_engine("glmnet")%>%
+  set_mode("classification")
+  
+set.seed(123)
+
+lg_grid <- grid_regular(dials::penalty(),  mixture(), levels = 15)
+
+
+lg_p1_res <- tune_grid( lg_p1_spec,
+                        class~.,
+                        resamples = p1_fold,
+                        grid = lg_grid,
+                        metrics =metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::specificity, 
+                          yardstick::sensitivity),
+                        control = control_resamples(save_pred = TRUE))
+
+
+show_best(lg_p1_res, "accuracy")
+
+show_best(lg_p1_res, "roc_auc")
+
+
+```
+
+
+
+```{r}
+best_mult_glm_params <- select_best(lg_p1_res, metric = "accuracy")
+
+mult_glm_final <- finalize_model(lg_p1_spec, best_mult_glm_params)
+
+final_mult_glm_res <- mult_glm_final %>%
+  fit_resamples(class~.,
+                resamples = p1_fold,
+                  metrics =metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::specificity, 
+                      yardstick::sensitivity),
+                control = control_resamples(save_pred = TRUE))
+
+final_mult_glm_res%>%collect_metrics()
+```
+
+
+```{r}
+
+rf_p1_spec <- rand_forest()%>%
+  set_engine("ranger")%>%
+  set_mode("classification")
+  
+set.seed(123)
+
+rf_p1_res <- rf_p1_spec%>%
+  fit_resamples(class~.,
+                resamples = p1_fold,
+                  metrics =metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::specificity, 
+                      yardstick::sensitivity),
+                control = control_resamples(save_pred = TRUE))
+
+
+rf_p1_res%>%collect_metrics()
+
+
+```
+
+
+
+
+
+```{r}
+mult_lg_wf <- workflow()%>%
+  add_formula(class~.)%>%
+  add_model(mult_glm_final)%>%
+  last_fit(p1_split)
+
+mult_lg_wf%>%
+  collect_metrics()
+
+```
+
+
+
+# Deuxième partie:
+
+```{r}
+
+# Calculer la matrice diagonale D
+D <- diag(rowSums(data$W))
+
+# Calculer l'inverse de la matrice diagonale D
+D_inv <- solve(D)
+
+# Calculer la matrice M
+M <- D_inv %*% data$W %*% data$fea
+
+# Afficher la matrice M
+df_M <- cbind(as.data.frame(M), df_gnd)
+
+head(as.data.frame(M))
+
+df_M$class <- as.factor(df_M$class)
+
+```
+
+
+
+
+
+```{r}
+
+p2_split <- initial_split(df_M, strata = class)
+
+p2_train <- training(p2_split)
+
+p2_test <- testing(p2_split)
+
+p2_fold <- vfold_cv(p2_train, strata = class, v = 5)
+
+```
+
+
+```{r}
+
+xg_p2_spec <- boost_tree()%>%
+  set_engine("xgboost")%>%
+  set_mode("classification")
+  
+set.seed(123)
+
+xg_p2_res <- xg_p2_spec%>%
+  fit_resamples(class~.,
+                resamples = p2_fold,
+                  metrics =metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::specificity, 
+                      yardstick::sensitivity),
+                control = control_resamples(save_pred = TRUE))
+
+
+xg_p2_res%>%collect_metrics()
+
+
+```
+
+
+
+```{r}
+bag_p2_spect <- bag_tree()%>%
+  set_engine("baguette")%>%
+  set_mode("classification")
+
+
+set.seed(123)
+
+bag_p2_res <- tune_grid( bag_p2_spect,
+                        class~.,
+                        resamples = p2_fold,
+                        metrics =metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::specificity, 
+                          yardstick::sensitivity),
+                        control = control_resamples(save_pred = TRUE))
+
+bag_p2_res%>%collect_metrics()
+
+```
+
+
+
+
+```{r}
+
+lg_p2_spec <- multinom_reg(penalty = tune(), mixture= tune())%>%
+  set_engine("glmnet")%>%
+  set_mode("classification")
+  
+set.seed(123)
+
+lg_grid <- grid_regular(dials::penalty(),  mixture(), levels = 10)
+
+
+lg_p2_res <- tune_grid( lg_p2_spec,
+                        class~.,
+                        resamples = p2_fold,
+                        grid = lg_grid,
+                        metrics =metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::specificity, 
+                          yardstick::sensitivity),
+                        control = control_resamples(save_pred = TRUE))
+
+
+show_best(lg_p2_res, "accuracy")
+
+show_best(lg_p2_res, "roc_auc")
+
+
+```
+
+
+```{r}
+best_mult_glm_params2 <- select_best(lg_p2_res, metric = "roc_auc")
+
+mult_glm_final <- finalize_model(lg_p2_spec, best_mult_glm_params2)
+
+final_mult_glm_res2 <- mult_glm_final %>%
+  fit_resamples(class~.,
+                resamples = p2_fold,
+                  metrics =metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::specificity, 
+                      yardstick::sensitivity),
+                control = control_resamples(save_pred = TRUE))
+
+final_mult_glm_res2%>%collect_metrics()
+```
+
+
+
+
+```{r}
+
+rf_p2_spec <- rand_forest()%>%
+  set_engine("ranger")%>%
+  set_mode("classification")
+  
+set.seed(123)
+
+rf_p2_res <- rf_p2_spec%>%
+  fit_resamples(class~.,
+                resamples = p2_fold,
+                  metrics =metric_set(yardstick::accuracy, yardstick::roc_auc, yardstick::specificity, 
+                      yardstick::sensitivity),
+                control = control_resamples(save_pred = TRUE))
+
+
+rf_p2_res%>%collect_metrics()
+
+
+```
+
+
+
